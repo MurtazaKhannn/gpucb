@@ -1,5 +1,8 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { NextRequest, NextResponse } from "next/server";
+import axios from "axios";
+
+
 
 export async function POST(req: NextRequest) {
   try {
@@ -12,6 +15,19 @@ export async function POST(req: NextRequest) {
       model: "gemini-1.5-flash",
       tools: [{ codeExecution: {} }],
     });
+    let fetchLocalMetrics: any;
+    try {
+      const response = await axios.post('http://127.0.0.1:5000/api/start-container', {
+        
+          image: "mongo:latest"
+        
+      });
+      fetchLocalMetrics = response.data;
+    } catch (error) {
+      console.error("Error fetching local metrics:", error);
+      fetchLocalMetrics = "Error fetching local metrics";
+    }
+    console.log("Local metrics fetched successfully:", fetchLocalMetrics);
     const gpulist = [
       {
         "country": "india",
@@ -147,7 +163,29 @@ export async function POST(req: NextRequest) {
 
     const systemPrompt = {
       role: "user",
-      parts: [{ text: `Based on the user input (with country, operating system, GPU specifications like A100, pricing, etc.), and the list of available GPU instances ${gpuSummary}, your task is to recommend the most suitable GPU from the list based on the user's requirements; first, display the following details for each GPU instance in the list: gpu_description, resource_name, price_per_hour, price_per_month, price_per_spot, ram, then compare the GPU instances with the user's input, consider technical factors such as VRAM, CPU, RAM, region, and budget, and provide a concise recommendation, justifying your choices with relevant technical reasoning (e.g., VRAM, performance, cost), ensuring the chosen GPU fits the user's budget, and present the results in a user-friendly JSON format with the top 3 GPUs, including GPU names, reasons for suitability, and cost breakdown (hourly/monthly/spot vs on-demand). User input ${userInput} ignore userInput some inputs are options suggest best GPU don't ask for clarification` }],
+      parts: [{ text: `Based on the user input (with country, operating system, GPU specifications like A100, pricing, etc.), and the list of available GPU instances ${gpuSummary} Local system usage of model is ${fetchLocalMetrics}, your task is to recommend the most suitable GPU from the list based on the user's requirements; first, display the following details for each GPU instance in the list: gpu_description, resource_name, price_per_hour, price_per_month, price_per_spot, ram, then compare the GPU instances with the user's input, consider technical factors such as VRAM, CPU, RAM, region, and budget, and provide a concise recommendation, justifying your choices with relevant technical reasoning (e.g., VRAM, performance, cost), ensuring the chosen GPU fits the user's budget, and present the results in a user-friendly JSON format with the top 3 GPUs, including GPU names, reasons for suitability, and cost breakdown (hourly/monthly/spot vs on-demand). User input ${userInput} ignore userInput some inputs are options suggest best GPU don't ask for clarification GIVE OUTPUT IN THIS FORMAT "{
+  "message": "Recommended GPU instances",
+  "country": "india",
+  "operating_system": "windows",
+  "resource_class": "a100",
+  "resource_name": "W.N.A100.96",
+  "vcpus": 16,
+  "ram": 96,
+  "price_per_hour": 3.42,
+  "price_per_month": 1563,
+  "price_per_spot": 2.394,
+  "currency": "USD",
+  "is_gpu": 1,
+  "is_spot": 0,
+  "resource": "instances",
+  "resource_type": "gpu",
+  "region": "mumbai",
+  "flavor_id": "773b990d-6c7e-41e7-a40d-601bbbcc6373",
+  "gpu_description": "1x A100-80GB",
+  "is_public": 1
+}
+
+give 3 Do not include any additional text, explanations, or formatting. Only return the JSON object in the format provided above. please give VRAM and other specs` }],
     }
 
     const chatHistory = history.map((entry: any, index: number) => ({
@@ -180,12 +218,12 @@ export async function POST(req: NextRequest) {
       topGPUs = { error: "Invalid response format", responseText };
     }
 
-    return new NextResponse(JSON.stringify({ topGPUs, status: 200 }), {
+    return NextResponse.json({ topGPUs, status: 200 }, {
       status: 200,
       headers: {
-        "Access-Control-Allow-Origin": "*", // Allow all domains (or replace with your frontend URL)
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
+      "Access-Control-Allow-Origin": "*", // Allow all domains (or replace with your frontend URL)
+      "Access-Control-Allow-Methods": "POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type",
       },
     });
 
